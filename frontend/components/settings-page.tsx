@@ -156,7 +156,7 @@ export function SettingsPage() {
       }
       // If no avatar file, optionally send avatar as empty string (depends on backend)
       // formData.append('avatar', '');
-      const res = await fetch("/api/user-settings/profile", {
+      const res = await fetch("/api/user-settings/profile/", {
         method: "PATCH",
         headers: {
           'Authorization': `Bearer ${token}`
