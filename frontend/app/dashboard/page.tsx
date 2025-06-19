@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useState, useEffect } from "react"
 import {
   Timer,
@@ -22,19 +23,19 @@ import {
   Bell,
   Coffee,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { NavigationLink } from "@/components/navigation-link"
-import { ClientsPage } from "@/components/clients-page"
-import { ReportsPage } from "@/components/reports-page"
-import { ProjectsPage } from "@/components/projects-page"
-import { SettingsPage } from "@/components/settings-page"
-import { CalendarView } from "@/components/calendar-view"
-import { PomodoroTimer } from "@/components/pomodoro-timer"
-import { TagsPage } from "@/components/tags-page"
-import { useAuth } from "@/components/auth/auth-context"
+import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@components/ui/card"
+import { Badge } from "@components/ui/badge"
+import { NavigationLink } from "@components/navigation-link"
+import { ClientsPage } from "@components/clients-page"
+import { ReportsPage } from "@components/reports-page"
+import { ProjectsPage } from "@components/projects-page"
+import { SettingsPage } from "@components/settings-page"
+import { CalendarView } from "@components/calendar-view"
+import { PomodoroTimer } from "@components/pomodoro-timer"
+import { TagsPage } from "@components/tags-page"
+import { useAuth } from "@components/auth/auth-context"
 import { useRouter } from "next/navigation"
 import { fetchPomodoroSessions, PomodoroSession } from "@/utils/pomodoro-api"
 import { ProtectedRoute } from "@/components/auth/protected-route"
@@ -56,14 +57,39 @@ declare global {
   }
 }
 
-// import shared Project interface
-import { Project } from "@/types/project";
 // interface Project {
 //   id: string | number;
 //   name: string;
 //   client?: string;
-//   // Add other fields if needed
+//   description?: string;
+//   status?: string;
+//   progress?: number;
+//   billableRate?: number;
+//   totalHours?: number;
+//   billableHours?: number;
+//   totalCost?: number;
+//   template?: string;
+//   createdDate?: string;
+//   deadline?: string;
+//   isBillable?: boolean;
 // }
+
+interface Project {
+  id: string | number;
+  name: string;
+  client?: string;
+  description?: string;
+  status?: string;
+  progress?: number;
+  billableRate?: number;
+  totalHours?: number;
+  billableHours?: number;
+  totalCost?: number;
+  template?: string;
+  createdDate?: string;
+  deadline?: string;
+  isBillable?: boolean;
+}
 
 interface TimeEntry {
   id: string
@@ -173,25 +199,45 @@ const [projects, setProjects] = useState<Project[]>([])
 
 // Add this useEffect to check for notifications
 useEffect(() => {
-  const checkNotifications = () => {
-    const newNotifications: Notification[] = []
-    const today = new Date()
+  console.log('DEBUG: timeEntries', timeEntries);
+  console.log('DEBUG: pomodoroSessions', pomodoroSessions);
+  console.log('DEBUG: notifications', notifications);
+  let didRemove = false;
+  const today = new Date().toISOString().split("T")[0];
+  const hasRegularToday = timeEntries.some((entry) => entry.date === today);
+  const hasPomodoroToday = pomodoroSessions.some((session) => {
+    const sessionDate = new Date(session.start_time).toISOString().split("T")[0];
+    return sessionDate === today;
+  });
 
-    // Check for tasks that should be completed today but aren't tracked
-    if (timeEntries.length === 0 && today.getHours() > 17) {
-      newNotifications.push({
-        id: Date.now().toString(),
-        title: "No time tracked today",
-        message: "You haven't tracked any time today. Don't forget to log your work!",
-        type: "task" as const,
-        timestamp: new Date(),
-        read: false,
-      })
+  // Remove 'No time tracked today' notification if time is tracked
+  if ((hasRegularToday || hasPomodoroToday) && notifications.some((n) => n.type === "task" && n.title === "No time tracked today")) {
+    setNotifications((prev) => prev.filter((n) => !(n.type === "task" && n.title === "No time tracked today")));
+    didRemove = true;
+  }
+
+  // Only run the rest if we didn't just update notifications
+  if (!didRemove) {
+    let newNotifications: Notification[] = [];
+    // Only add if not tracked and not already present
+    if (!hasRegularToday && !hasPomodoroToday) {
+      const alreadyNotified = notifications.some(
+        (n) => n.type === "task" && n.title === "No time tracked today" && !n.read
+      );
+      if (!alreadyNotified) {
+        newNotifications.push({
+          id: Date.now().toString(),
+          title: "No time tracked today",
+          message: "You haven't tracked any time today. Don't forget to log your work!",
+          type: "task" as const,
+          timestamp: new Date(),
+          read: false,
+        });
+      }
     }
 
     // Check for incomplete pomodoro sessions
     if (isTracking && timeElapsed > 1800) {
-      // 30 minutes
       newNotifications.push({
         id: (Date.now() + 1).toString(),
         title: "Long session detected",
@@ -199,20 +245,121 @@ useEffect(() => {
         type: "reminder" as const,
         timestamp: new Date(),
         read: false,
-      })
+      });
     }
 
+    // --- DEADLINE NOTIFICATIONS ---
+    projects.forEach((project) => {
+      if (!project.deadline || project.status === "Completed") return;
+      const deadlineDate = new Date(project.deadline);
+      const now = new Date();
+      const diffTime = deadlineDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // If deadline is within 3 days (including today)
+      if (diffDays >= 0 && diffDays <= 3) {
+        // Avoid duplicate notifications for the same project and deadline
+        const alreadyNotified = notifications.some(
+          (n) =>
+            n.type === "deadline" &&
+            n.title.includes(project.name) &&
+            n.message.includes(project.deadline ?? "") &&
+            !n.read
+        );
+        if (!alreadyNotified) {
+          newNotifications.push({
+            id: `${project.id}-deadline-${project.deadline}`,
+            title: `Project deadline approaching: ${project.name}`,
+            message: `The deadline for project \"${project.name}\" is on ${deadlineDate.toLocaleDateString()}. (${diffDays === 0 ? "Today" : diffDays + " day(s) left"})\n${project.deadline}`,
+            type: "deadline",
+            timestamp: new Date(),
+            read: false,
+          });
+        }
+      }
+    });
+    // --- END DEADLINE NOTIFICATIONS ---
+
     if (newNotifications.length > 0) {
-      setNotifications((prev) => [...prev, ...newNotifications])
+      setNotifications((prev) => [...prev, ...newNotifications]);
     }
   }
 
-  // Call once immediately
-  checkNotifications()
-  // Then every minute
-  const interval = setInterval(checkNotifications, 60000)
-  return () => clearInterval(interval)
-}, [timeEntries, isTracking, timeElapsed])
+  const interval = setInterval(() => {
+    // Repeat the same logic as above
+    console.log('DEBUG (interval): timeEntries', timeEntries);
+    console.log('DEBUG (interval): pomodoroSessions', pomodoroSessions);
+    console.log('DEBUG (interval): notifications', notifications);
+    let didRemove = false;
+    const today = new Date().toISOString().split("T")[0];
+    const hasRegularToday = timeEntries.some((entry) => entry.date === today);
+    const hasPomodoroToday = pomodoroSessions.some((session) => {
+      const sessionDate = new Date(session.start_time).toISOString().split("T")[0];
+      return sessionDate === today;
+    });
+    if ((hasRegularToday || hasPomodoroToday) && notifications.some((n) => n.type === "task" && n.title === "No time tracked today")) {
+      setNotifications((prev) => prev.filter((n) => !(n.type === "task" && n.title === "No time tracked today")));
+      didRemove = true;
+    }
+    if (!didRemove) {
+      let newNotifications: Notification[] = [];
+      if (!hasRegularToday && !hasPomodoroToday) {
+        const alreadyNotified = notifications.some(
+          (n) => n.type === "task" && n.title === "No time tracked today" && !n.read
+        );
+        if (!alreadyNotified) {
+          newNotifications.push({
+            id: Date.now().toString(),
+            title: "No time tracked today",
+            message: "You haven't tracked any time today. Don't forget to log your work!",
+            type: "task" as const,
+            timestamp: new Date(),
+            read: false,
+          });
+        }
+      }
+      if (isTracking && timeElapsed > 1800) {
+        newNotifications.push({
+          id: (Date.now() + 1).toString(),
+          title: "Long session detected",
+          message: "You've been working for over 30 minutes. Consider taking a break!",
+          type: "reminder" as const,
+          timestamp: new Date(),
+          read: false,
+        });
+      }
+      projects.forEach((project) => {
+        if (!project.deadline || project.status === "Completed") return;
+        const deadlineDate = new Date(project.deadline);
+        const now = new Date();
+        const diffTime = deadlineDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays <= 3) {
+          const alreadyNotified = notifications.some(
+            (n) =>
+              n.type === "deadline" &&
+              n.title.includes(project.name) &&
+              n.message.includes(project.deadline ?? "") &&
+              !n.read
+          );
+          if (!alreadyNotified) {
+            newNotifications.push({
+              id: `${project.id}-deadline-${project.deadline}`,
+              title: `Project deadline approaching: ${project.name}`,
+              message: `The deadline for project \"${project.name}\" is on ${deadlineDate.toLocaleDateString()}. (${diffDays === 0 ? "Today" : diffDays + " day(s) left"})\n${project.deadline}`,
+              type: "deadline",
+              timestamp: new Date(),
+              read: false,
+            });
+          }
+        }
+      });
+      if (newNotifications.length > 0) {
+        setNotifications((prev) => [...prev, ...newNotifications]);
+      }
+    }
+  }, 60000);
+  return () => clearInterval(interval);
+}, [timeEntries, pomodoroSessions, isTracking, timeElapsed, projects]);
 
 // ...existing code...
 
@@ -240,21 +387,23 @@ useEffect(() => {
     }
     fetchInitialData()
     // Click outside logic for dropdowns
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element
-      if (!target.closest(".notification-dropdown") && !target.closest(".notification-button")) {
-        setShowNotifications(false)
-      }
-      if (!target.closest(".profile-dropdown") && !target.closest(".profile-button")) {
-        setShowProfileDropdown(false)
-      }
-      if (!target.closest(".project-dropdown") && !target.closest(".project-button")) {
-        setShowProjectDropdown(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
+    // const handleClickOutside = (event: MouseEvent) => {
+    //   const target = event.target;
+    //   if (target instanceof Element) {
+    //     if (!target.closest(".notification-dropdown") && !target.closest(".notification-button")) {
+    //       setShowNotifications(false);
+    //     }
+    //     if (!target.closest(".profile-dropdown") && !target.closest(".profile-button")) {
+    //       setShowProfileDropdown(false);
+    //     }
+    //     if (!target.closest(".project-dropdown") && !target.closest(".project-button")) {
+    //       setShowProjectDropdown(false);
+    //     }
+    //   }
+    // }
+    // document.addEventListener("mousedown", handleClickOutside)
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
+      // document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
 
@@ -575,7 +724,7 @@ useEffect(() => {
             <div className="max-w-6xl mx-auto space-y-6">
               {/* Today's Overview */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card>
+                <Card className="bg-white">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Today's Time</CardTitle>
                     <Clock className="h-4 w-4 text-muted-foreground" />
@@ -590,7 +739,7 @@ useEffect(() => {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-white">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">This Week</CardTitle>
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -605,7 +754,7 @@ useEffect(() => {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-white">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
                     <Target className="h-4 w-4 text-muted-foreground" />
@@ -628,7 +777,7 @@ useEffect(() => {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-white">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
                     <button onClick={() => setActivePage("SETTINGS")} className="cursor-pointer">
@@ -645,7 +794,7 @@ useEffect(() => {
               </div>
 
               {/* Timer Section */}
-              <Card>
+              <Card className="bg-white">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -806,7 +955,7 @@ useEffect(() => {
 
               {/* Recent Activity */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
+                <Card className="bg-white">
                   <CardHeader>
                     <CardTitle>Recent Projects</CardTitle>
                     <CardDescription>Your most active projects this week</CardDescription>
@@ -845,7 +994,7 @@ useEffect(() => {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-white">
                   <CardHeader>
                     <CardTitle>This Week's Summary</CardTitle>
                     <CardDescription>Your daily productivity overview</CardDescription>
@@ -877,7 +1026,7 @@ useEffect(() => {
               </div>
 
               {/* Quick Actions */}
-              <Card>
+              <Card className="bg-white">
                 <CardHeader>
                   <CardTitle>Quick Actions</CardTitle>
                   <CardDescription>Frequently used features</CardDescription>
@@ -1088,7 +1237,7 @@ useEffect(() => {
                     {notifications.length > 0 && (
                       <div className="p-3 border-t border-gray-200">
                         <button
-                          onClick={() => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))}
+                          onClick={() => setNotifications([])}
                           className="text-sm text-purple-600 hover:text-purple-700"
                         >
                           Mark all as read
@@ -1109,7 +1258,9 @@ useEffect(() => {
                 </button>
 
                 {showProfileDropdown && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                    style={{ pointerEvents: 'auto', zIndex: 9999 }}
+                  >
                     <div className="p-4">
                       <div className="flex items-center space-x-3 mb-4">
                         <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center">
@@ -1140,28 +1291,17 @@ useEffect(() => {
                         </div>
                       </div>
 
-                      <div className="border-t border-gray-200 pt-3">
-                        <button
-                          onClick={() => {
-                            setShowProfileDropdown(false)
-                            router.push("/settings")
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md flex items-center"
-                        >
-                          <Settings className="h-4 w-4 mr-2" />
-                          See more in Settings
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowProfileDropdown(false)
-                            logout()
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md flex items-center mt-1"
-                        >
-                          <LogOut className="h-4 w-4 mr-2" />
-                          Sign Out
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => {
+                          console.log('Rendering Sign Out button');
+                          console.log('Sign Out button clicked');
+                          logout();
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md flex items-center mt-1"
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign Out
+                      </button>
                     </div>
                   </div>
                 )}

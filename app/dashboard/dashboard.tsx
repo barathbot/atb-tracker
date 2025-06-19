@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useState, useEffect } from "react"
 import {
   Timer,
@@ -21,20 +22,20 @@ import {
   Pause,
   Bell,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { NavigationLink } from "@/components/navigation-link"
-import { ClientsPage } from "@/components/clients-page"
-import { TeamPage } from "@/components/team-page"
-import { ReportsPage } from "@/components/reports-page"
-import { ProjectsPage } from "@/components/projects-page"
-import { SettingsPage } from "@/components/settings-page"
-import { CalendarView } from "@/components/calendar-view"
-import { PomodoroTimer } from "@/components/pomodoro-timer"
-import { TagsPage } from "@/components/tags-page"
-import { useAuth } from "./components/auth/auth-context"
+import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@components/ui/card"
+import { Badge } from "@components/ui/badge"
+import { NavigationLink } from "@components/navigation-link"
+import { ClientsPage } from "@components/clients-page"
+import { TeamPage } from "@components/team-page"
+import { ReportsPage } from "@components/reports-page"
+import { ProjectsPage } from "@components/projects-page"
+import { SettingsPage } from "@components/settings-page"
+import { CalendarView } from "@components/calendar-view"
+import { PomodoroTimer } from "@components/pomodoro-timer"
+import { TagsPage } from "@components/tags-page"
+import { useAuth } from "@components/auth/auth-context"
 import { useRouter } from "next/navigation"
 
 // Add global type definition for teamTags
@@ -131,7 +132,7 @@ export default function Dashboard() {
 
   // Timer functionality
   useEffect(() => {
-    let interval: NodeJS.Timeout
+    let interval: any
     if (isTracking && timerMode === "regular") {
       interval = setInterval(() => {
         setTimeElapsed((prev) => prev + 1)
@@ -143,7 +144,7 @@ export default function Dashboard() {
   // Add this useEffect to check for notifications
   useEffect(() => {
     const checkNotifications = () => {
-      const newNotifications = []
+      const newNotifications: typeof notifications = []
       const today = new Date()
 
       // Check for tasks that should be completed today but aren't tracked
@@ -354,7 +355,7 @@ export default function Dashboard() {
   // Get this week's daily summary
   const getWeeklySummary = () => {
     const today = new Date()
-    const weekDays = []
+    const weekDays: Array<{ day: string; date: string; isToday: boolean }> = []
 
     for (let i = 0; i < 7; i++) {
       const date = new Date(today)

@@ -127,40 +127,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    try {
-      // Sign out from Firebase
-      await firebaseSignOut()
-      
-      // Clear local storage
-      localStorage.removeItem("user")
-      localStorage.removeItem("isAuthenticated")
-      localStorage.removeItem("authToken")
-      
-      // Clear auth token on backend
-      const token = localStorage.getItem("authToken")
-      if (token) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token })
-        })
+    let didRedirect = false;
+    const doRedirect = () => {
+      if (!didRedirect) {
+        didRedirect = true;
+        window.location.href = "/login";
       }
-      
-      setUser(null)
-      setIsAuthenticated(false)
-      window.location.href = "/"
-      setTimeout(() => window.location.reload(), 100)
+    };
+
+    try {
+      // Sign out from Firebase (with timeout fallback)
+      await Promise.race([
+        firebaseSignOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Sign out timeout")), 3000))
+      ]);
     } catch (error) {
-      console.error("Logout error:", error)
-      // Force logout even if there's an error
-      setUser(null)
-      setIsAuthenticated(false)
-      localStorage.removeItem("user")
-      localStorage.removeItem("isAuthenticated")
-      localStorage.removeItem("authToken")
-      window.location.href = "/"
+      console.error("Logout error:", error);
+      // Continue to redirect even if sign out fails
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem("user");
+      localStorage.removeItem("isAuthenticated");
+      localStorage.removeItem("authToken");
+      doRedirect();
     }
   }
 
