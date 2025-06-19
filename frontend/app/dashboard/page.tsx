@@ -37,6 +37,7 @@ import { TagsPage } from "@/components/tags-page"
 import { useAuth } from "@/components/auth/auth-context"
 import { useRouter } from "next/navigation"
 import { fetchPomodoroSessions, PomodoroSession } from "@/utils/pomodoro-api"
+import { ProtectedRoute } from "@/components/auth/protected-route"
 
 // Notification type definitions
 export type NotificationType = "deadline" | "task" | "reminder";
@@ -75,7 +76,15 @@ interface TimeEntry {
   tags?: string[]
 }
 
-export default function Dashboard() {
+export default function DashboardPageWrapper() {
+  return (
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
+  )
+}
+
+function Dashboard() {
   // ...existing state declarations...
   // Add a helper to refresh pomodoro sessions
   async function refreshPomodoroSessions() {
