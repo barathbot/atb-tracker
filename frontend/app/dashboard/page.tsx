@@ -55,12 +55,14 @@ declare global {
   }
 }
 
-interface Project {
-  id: string | number;
-  name: string;
-  client?: string;
-  // Add other fields if needed
-}
+// import shared Project interface
+import { Project } from "@/types/project";
+// interface Project {
+//   id: string | number;
+//   name: string;
+//   client?: string;
+//   // Add other fields if needed
+// }
 
 interface TimeEntry {
   id: string

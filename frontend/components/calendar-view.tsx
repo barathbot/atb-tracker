@@ -402,7 +402,7 @@ export function CalendarView() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
                   <Input
                     type="date"
-                    value={selectedDate?.toISOString().split("T")[0] || ""}
+                    value={selectedDate instanceof Date ? selectedDate.toISOString().split("T")[0] : ""}
                     onChange={(e) => setSelectedDate(new Date(e.target.value))}
                   />
                 </div>

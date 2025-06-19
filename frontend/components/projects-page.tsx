@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProjectModal as EnhancedProjectModal } from "./enhanced-project-modal"
+import { Project } from "@/types/project";
 import { Textarea } from "@/components/ui/textarea"
 import { fetchProjects, createProject, updateProject } from "@/utils/projects-api"
 
@@ -53,44 +54,21 @@ async function createProjectInBackend(projectData: any) {
   return await response.json()
 }
 
-interface Project {
-  id: number
-  name: string
-  client: string
-  description: string
-  status: string
-  progress: number
-  billableRate: number
-  totalHours: number
-  billableHours: number
-  totalCost: number
-  members: Array<{
-    id: number
-    name: string
-    avatar?: string
-    role?: string
-  }>
-  template: string
-  createdDate: string
-  deadline: string
-  isBillable: boolean
-  recentActivity: Array<{
-    action: string
-    user: string
-    time: string
-  }>
-}
-
 export function ProjectsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [filters, setFilters] = useState({
-    client: "",
-    member: "",
-    billable: "",
-    template: "",
-  })
+  interface Filters {
+  client: string;
+  billable: string;
+  template: string;
+}
+
+const [filters, setFilters] = useState<Filters>({
+  client: "",
+  billable: "",
+  template: "",
+})
 
   // State to store user-created projects
   const [projects, setProjects] = useState<Project[]>([]) // Always fetch from backend, never localStorage
@@ -108,18 +86,7 @@ export function ProjectsPage() {
     "All Clients",
     ...Array.from(new Set(projects.map((p) => p.client))).filter((c) => c && c !== ""),
   ];
-  const members = [
-    "All Members",
-    ...Array.from(
-      new Set(
-        projects.flatMap((p) =>
-          Array.isArray(p.members)
-            ? p.members.map((m) => m.name)
-            : []
-        )
-      )
-    ).filter((m) => m && m !== ""),
-  ];
+  
   const billableOptions = ["All", "Billable", "Non-Billable"];
   const templates = [
     "All Templates",
@@ -169,20 +136,19 @@ export function ProjectsPage() {
           setProjects(
             data.map((p) => ({
               ...p,
-              members: Array.isArray(p.members) ? p.members : [],
               recentActivity: Array.isArray(p.recentActivity) ? p.recentActivity : [],
-              name: p.name || "",
-              client: p.client || "",
-              description: p.description || "",
-              status: p.status || "Planning",
+              name: p.name ?? "",
+              client: p.client ?? "",
+              description: p.description ?? "",
+              status: p.status ?? "Planning",
               progress: typeof p.progress === "number" ? p.progress : 0,
               billableRate: typeof p.billableRate === "number" ? p.billableRate : 0,
               totalHours: typeof p.totalHours === "number" ? p.totalHours : 0,
               billableHours: typeof p.billableHours === "number" ? p.billableHours : 0,
               totalCost: typeof p.totalCost === "number" ? p.totalCost : 0,
-              template: p.template || "",
-              createdDate: p.createdDate || new Date().toISOString().split("T")[0],
-              deadline: p.deadline || "",
+              template: p.template ?? "",
+              createdDate: p.createdDate ?? new Date().toISOString().split("T")[0],
+              deadline: p.deadline ?? "",
               isBillable: typeof p.isBillable === "boolean" ? p.isBillable : false,
             }))
           )
@@ -291,10 +257,7 @@ export function ProjectsPage() {
       (project.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
       (project.client?.toLowerCase() || "").includes(searchTerm.toLowerCase());
     const matchesClient = !filters.client || filters.client === "All Clients" || project.client === filters.client;
-    const matchesMember =
-      !filters.member ||
-      filters.member === "All Members" ||
-      (Array.isArray(project.members) && project.members.some((member) => member.name === filters.member));
+
     const matchesBillable =
       !filters.billable ||
       filters.billable === "All" ||
@@ -303,7 +266,7 @@ export function ProjectsPage() {
     const matchesTemplate =
       !filters.template || filters.template === "All Templates" || project.template === filters.template;
 
-    return matchesSearch && matchesClient && matchesMember && matchesBillable && matchesTemplate;
+    return matchesSearch && matchesClient && matchesBillable && matchesTemplate;
   })
 
   const handleEditProject = (project: Project) => {
@@ -332,6 +295,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
             status: newStatus,
             progress: getStatusProgress(newStatus),
           };
+          if (!updatedProject.recentActivity) updatedProject.recentActivity = [];
           updatedProject.recentActivity.unshift({
             action: `Changed status to ${newStatus}`,
             user: "You",
@@ -381,20 +345,20 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
             setProjects(
               data.map((p) => ({
                 ...p,
-                members: Array.isArray(p.members) ? p.members : [],
+                
                 recentActivity: Array.isArray(p.recentActivity) ? p.recentActivity : [],
-                name: p.name || "",
-                client: p.client || "",
-                description: p.description || "",
-                status: p.status || "Planning",
+                name: p.name ?? "",
+                client: p.client ?? "",
+                description: p.description ?? "",
+                status: p.status ?? "Planning",
                 progress: typeof p.progress === "number" ? p.progress : 0,
                 billableRate: typeof p.billableRate === "number" ? p.billableRate : 0,
                 totalHours: typeof p.totalHours === "number" ? p.totalHours : 0,
                 billableHours: typeof p.billableHours === "number" ? p.billableHours : 0,
                 totalCost: typeof p.totalCost === "number" ? p.totalCost : 0,
-                template: p.template || "",
-                createdDate: p.createdDate || new Date().toISOString().split("T")[0],
-                deadline: p.deadline || "",
+                template: p.template ?? "",
+                createdDate: p.createdDate ?? new Date().toISOString().split("T")[0],
+                deadline: p.deadline ?? "",
                 isBillable: typeof p.isBillable === "boolean" ? p.isBillable : false,
               }))
             );
@@ -476,7 +440,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
             {/* Filters */}
             <div className="flex flex-wrap gap-3">
               <Select
-                value={filters.client}
+                value={filters.client ?? ""}
                 onValueChange={(value) => setFilters((prev) => ({ ...prev, client: value }))}
               >
                 <SelectTrigger className="w-[150px]">
@@ -492,25 +456,9 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                 </SelectContent>
               </Select>
 
-              <Select
-                value={filters.member}
-                onValueChange={(value) => setFilters((prev) => ({ ...prev, member: value }))}
-              >
-                <SelectTrigger className="w-[150px]">
-                  <User className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {members.map((member) => (
-                    <SelectItem key={member} value={member}>
-  {member}
-</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
 
               <Select
-                value={filters.billable}
+                value={filters.billable ?? ""}
                 onValueChange={(value) => setFilters((prev) => ({ ...prev, billable: value }))}
               >
                 <SelectTrigger className="w-[150px]">
@@ -527,7 +475,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
               </Select>
 
               <Select
-                value={filters.template}
+                value={filters.template ?? ""}
                 onValueChange={(value) => setFilters((prev) => ({ ...prev, template: value }))}
               >
                 <SelectTrigger className="w-[150px]">
@@ -553,33 +501,34 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
           {/* Projects Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredProjects.map((project) => {
-              const StatusIcon = getStatusIcon(project.status)
-              const nextStatus = getNextStatus(project.status)
+              const StatusIcon = getStatusIcon(project.status ?? "Unknown")
+              const nextStatus = getNextStatus(project.status ?? "Unknown")
+              const overdue = isDeadlineOverdue(project.deadline ?? "");
+              const near = isDeadlineNear(project.deadline ?? "");
 
               return (
                 <Card key={project.id} className="bg-white/90 backdrop-blur-sm hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-3">
                     {/* Deadline Warning */}
-                    {(isDeadlineOverdue(project.deadline) || isDeadlineNear(project.deadline)) &&
-                      project.status !== "Completed" && (
+                    {(overdue || near) && project.status !== "Completed" && (
                         <div
                           className={`flex items-center space-x-2 p-2 rounded-lg mb-3 ${
-                            isDeadlineOverdue(project.deadline)
+                            overdue
                               ? "bg-red-50 border border-red-200"
                               : "bg-orange-50 border border-orange-200"
                           }`}
                         >
                           <AlertTriangle
                             className={`h-4 w-4 ${
-                              isDeadlineOverdue(project.deadline) ? "text-red-500" : "text-orange-500"
+                              overdue ? "text-red-500" : "text-orange-500"
                             }`}
                           />
                           <span
                             className={`text-xs font-medium ${
-                              isDeadlineOverdue(project.deadline) ? "text-red-700" : "text-orange-700"
+                              overdue ? "text-red-700" : "text-orange-700"
                             }`}
                           >
-                            {isDeadlineOverdue(project.deadline)
+                            {overdue
                               ? "⚠️ Deadline overdue! Complete ASAP"
                               : "⏰ Deadline approaching soon"}
                           </span>
@@ -588,8 +537,8 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
 
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-lg font-semibold text-gray-800 mb-1">{project.name}</CardTitle>
-                        <CardDescription className="text-sm text-gray-600">{project.description}</CardDescription>
+                        <CardTitle className="text-lg font-semibold text-gray-800 mb-1">{(project.name ?? "Unnamed Project").toString()}</CardTitle>
+                        <CardDescription className="text-sm text-gray-600">{(project.description ?? "No description").toString()}</CardDescription>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -616,15 +565,15 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
 
                     <div className="flex items-center justify-between mt-3">
                       <div className="flex items-center space-x-2">
-                        <Badge className={getStatusColor(project.status)}>
+                        <Badge className={getStatusColor(project.status ?? "Unknown")}>
                           <StatusIcon className="h-3 w-3 mr-1" />
-                          {project.status}
+                          {project.status ?? "Unknown"}
                         </Badge>
                         {project.status !== "Completed" && (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleStatusChange(project.id, nextStatus)}
+                            onClick={() => handleStatusChange(Number(project.id), nextStatus)}
                             className="h-6 px-2 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
                           >
                             → {nextStatus}
@@ -633,7 +582,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-gray-600">
                         <Building className="h-4 w-4" />
-                        <span>{project.client}</span>
+                        <span>{(project.client ?? "No client").toString()}</span>
                       </div>
                     </div>
                   </CardHeader>
@@ -643,12 +592,12 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">{project.progress}%</span>
+                        <span className="font-medium">{project.progress ?? 0}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                           className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${project.progress}%` }}
+                          style={{ width: `${project.progress ?? 0}%` }}
                         ></div>
                       </div>
                     </div>
@@ -660,7 +609,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                           <Clock className="h-4 w-4 mr-1" />
                           <span>Total Hours</span>
                         </div>
-                        <div className="font-semibold">{project.totalHours}h</div>
+                        <div className="font-semibold">{project.totalHours ?? 0}h</div>
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center text-gray-600">
@@ -668,7 +617,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                           <span>Total Cost</span>
                         </div>
                         <div className="font-semibold">
-                          {project.isBillable ? `$${project.totalCost.toLocaleString()}` : "Non-billable"}
+                          {project.isBillable ? `$${(Number(project.totalCost ?? 0)).toLocaleString()}` : "Non-billable"}
                         </div>
                       </div>
                     </div>
@@ -682,10 +631,10 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                             <span className="text-sm font-medium text-green-800">Billable Rate</span>
                           </div>
                         </div>
-                        <div className="text-lg font-bold text-green-600 mt-1">${project.billableRate}/hour</div>
+                        <div className="text-lg font-bold text-green-600 mt-1">${Number(project.billableRate ?? 0)}/hour</div>
                         <div className="text-xs text-green-600 mt-1">
-                          {project.billableHours}h billable • $
-                          {(project.billableHours * project.billableRate).toLocaleString()} earned
+                          {project.billableHours ?? 0}h billable • $
+                          {((Number(project.billableHours ?? 0)) * (Number(project.billableRate ?? 0))).toLocaleString()} earned
                         </div>
                       </div>
                     )}
@@ -755,7 +704,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
 
                     {/* Project Info */}
                     <div className="flex justify-between text-xs text-gray-500 pt-2 border-t">
-                      <span>Created: {new Date(project.createdDate).toLocaleDateString()}</span>
+                      <span>Created: {project.createdDate ? new Date(project.createdDate).toLocaleDateString() : "Unknown"}</span>
                       {project.deadline && (
                         <span
                           className={
@@ -766,7 +715,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                                 : "")
                           }
                         >
-                          Due: {new Date(project.deadline).toLocaleDateString()}
+                          Due: {project.deadline ? new Date(project.deadline).toLocaleDateString() : "No deadline"}
                         </span>
                       )}
                     </div>
@@ -835,7 +784,7 @@ const handleStatusChange = async (projectId: number, newStatus: string) => {
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("")
-                    setFilters({ client: "", member: "", billable: "", template: "" })
+                    setFilters({ client: "", billable: "", template: "" })
                   }}
                   className="text-purple-600 border-purple-600 hover:bg-purple-50"
                 >

@@ -2,50 +2,22 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { X, Plus, DollarSign, Users, FileText, Building, Calendar, User } from "lucide-react"
+import { X, DollarSign, FileText, Building, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
+import { Project } from "@/types/project"
 
-interface Project {
-  id?: number
-  name: string
-  client: string
-  description: string
-  status?: string
-  progress?: number
-  billableRate?: number
-  totalHours?: number
-  billableHours?: number
-  totalCost?: number
-  members?: Array<{
-    id: number
-    name: string
-    avatar?: string
-    role?: string
-  }>
-  template: string
-  createdDate?: string
-  deadline: string
-  isBillable: boolean
-  recentActivity?: Array<{
-    action: string
-    user: string
-    time: string
-  }>
-}
 
 interface ProjectModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (project: any) => void
+  onSave: (project: Project) => void
   project?: Project | null
-  existingTeamMembers?: string[] // Pass existing team members from parent
-  onUpdateTeamMembers?: (members: string[]) => void // Callback to update team members list
+
 }
 
 const PROJECT_TEMPLATES = [
@@ -126,10 +98,23 @@ export function ProjectModal({
   onClose,
   onSave,
   project,
-  existingTeamMembers = [],
-  onUpdateTeamMembers,
+
 }: ProjectModalProps) {
-  const [formData, setFormData] = useState({
+  type ProjectFormData = {
+    name: string;
+    client: string;
+    description: string;
+    template: string;
+    deadline: string;
+    isBillable: boolean;
+    billableRate: string;
+
+    status: string;
+    progress: string;
+    totalHours: string;
+  };
+
+  const [formData, setFormData] = useState<ProjectFormData>({
     name: project?.name || "",
     client: project?.client || "",
     description: project?.description || "",
@@ -139,22 +124,21 @@ export function ProjectModal({
     deadline: project?.deadline || "",
     isBillable: project?.isBillable ?? true,
     billableRate: project?.billableRate?.toString() || "",
-    members: project?.members?.map((m) => m.name) || [],
     status: project?.status || "Planning",
     progress: project?.progress?.toString() || "0",
     totalHours: project?.totalHours?.toString() || "0",
   })
 
-  const [newMemberName, setNewMemberName] = useState("")
-  const [showCustomMember, setShowCustomMember] = useState(false)
+
   const [projectNameSuggestions, setProjectNameSuggestions] = useState<string[]>([])
   const [clientNameSuggestions, setClientNameSuggestions] = useState<string[]>([])
-  const [memberNameSuggestions, setMemberNameSuggestions] = useState<string[]>([])
+
 
   // Reset form when modal opens/closes or project changes
   useEffect(() => {
-    if (isOpen) {
-      setFormData({
+    // Only reset form if editing an existing project, not when creating new
+    if (isOpen && project) {
+      const newFormData = {
         name: project?.name || "",
         client: project?.client || "",
         description: project?.description || "",
@@ -164,15 +148,19 @@ export function ProjectModal({
         deadline: project?.deadline || "",
         isBillable: project?.isBillable ?? true,
         billableRate: project?.billableRate?.toString() || "",
-        members: project?.members?.map((m) => m.name) || [],
+
         status: project?.status || "Planning",
         progress: project?.progress?.toString() || "0",
         totalHours: project?.totalHours?.toString() || "0",
-      })
-      setNewMemberName("")
-      setShowCustomMember(false)
+      };
+      setFormData((prev) => {
+        const isSame = (Object.keys(newFormData) as Array<keyof ProjectFormData>).every(
+          (key: keyof ProjectFormData) => prev[key] === newFormData[key]
+        );
+        return isSame ? prev : newFormData;
+      });
     }
-  }, [isOpen, project])
+  }, [isOpen, project]);
 
   // Extract unique project and client names from localStorage
   useEffect(() => {
@@ -198,23 +186,7 @@ export function ProjectModal({
     }
   }, [isOpen])
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && isOpen) {
-      // Get members from props
-      let propMembers: string[] = existingTeamMembers || [];
 
-      // Get members from localStorage
-      const savedMembers = localStorage.getItem('members');
-      let localMembers: string[] = [];
-      if (savedMembers) {
-        const members = JSON.parse(savedMembers);
-        localMembers = members.map((m: any) => m.name).filter(Boolean);
-      }
-
-      // Merge and deduplicate
-      setMemberNameSuggestions(Array.from(new Set([...propMembers, ...localMembers])));
-    }
-  }, [isOpen, existingTeamMembers]);
 
   const handleInputChange = (field: string, value: string | boolean | string[]) => {
     setFormData((prev) => ({
@@ -224,46 +196,32 @@ export function ProjectModal({
   }
 
   const handleTemplateChange = (templateId: string) => {
-    const template = PROJECT_TEMPLATES.find((t) => t.id === templateId)
-    if (template) {
-      setFormData((prev) => ({
+    setFormData((prev) => {
+      if (prev.template === templateId) return prev;
+      const template = PROJECT_TEMPLATES.find((t) => t.id === templateId);
+      if (!template) {
+        return prev;
+      }
+      // Only update if something actually changes
+      const newFormData = {
         ...prev,
         template: template.id,
         isBillable: template.defaultBillable,
         billableRate: template.suggestedRate.toString(),
         description: prev.description || template.description,
-      }))
-    }
+      };
+      const isSame = (Object.keys(newFormData) as Array<keyof ProjectFormData>).every(
+        (key: keyof ProjectFormData) => prev[key] === newFormData[key]
+      );
+      return isSame ? prev : newFormData;
+    });
   }
 
-  const addTeamMember = (memberName: string) => {
-    if (memberName && !formData.members.includes(memberName)) {
-      const updatedMembers = [...formData.members, memberName]
-      setFormData((prev) => ({
-        ...prev,
-        members: updatedMembers,
-      }))
 
-      // Update the global team members list
-      const allMembers = Array.from(new Set([...existingTeamMembers, memberName]))
-      onUpdateTeamMembers?.(allMembers)
-    }
-    setNewMemberName("")
-    setShowCustomMember(false)
-  }
 
-  const removeTeamMember = (memberName: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      members: prev.members.filter((name) => name !== memberName),
-    }))
-  }
 
-  const addCustomMember = () => {
-    if (newMemberName.trim()) {
-      addTeamMember(newMemberName.trim())
-    }
-  }
+
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -273,14 +231,12 @@ export function ProjectModal({
       billableRate: formData.isBillable ? Number.parseFloat(formData.billableRate) || 0 : 0,
       progress: Number.parseInt(formData.progress) || 0,
       totalHours: Number.parseFloat(formData.totalHours) || 0,
+      id: project?.id ?? Date.now(), // add id for both edit and create
     }
 
     onSave(projectData)
     onClose()
   }
-
-  // Available members are those that exist but aren't currently selected
-  const availableMembers = existingTeamMembers.filter((member) => !formData.members.includes(member))
 
   if (!isOpen) return null
 
@@ -306,13 +262,7 @@ export function ProjectModal({
               </Label>
               <Select value={formData.template} onValueChange={handleTemplateChange}>
                 <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder="Choose a project template"
-                    >
-                    {formData.template
-                      ? PROJECT_TEMPLATES.find((t) => t.id === formData.template)?.name
-                      : null}
-                  </SelectValue>
+                  <SelectValue placeholder="Choose a project template" />
                 </SelectTrigger>
                 <SelectContent className="z-[60] max-h-60 overflow-y-auto bg-white border border-gray-200 shadow-lg">
                   {PROJECT_TEMPLATES.map((template) => (
@@ -428,122 +378,7 @@ export function ProjectModal({
               )}
             </div>
 
-            {/* Team Members */}
-            <div className="bg-blue-50 rounded-lg p-4 space-y-4">
-              <h3 className="text-lg font-medium text-gray-800 flex items-center">
-                <Users className="h-5 w-5 mr-2" />
-                Team Members
-              </h3>
 
-              {/* Selected Members */}
-              {formData.members.length > 0 && (
-                <div>
-                  <Label className="block text-sm font-medium text-gray-700 mb-2">
-                    Selected Members ({formData.members.length})
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.members.map((member, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center space-x-1 px-3 py-1">
-                        <User className="h-3 w-3" />
-                        <span>{member}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeTeamMember(member)}
-                          className="ml-1 text-gray-500 hover:text-red-500"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Add Team Members */}
-              <div>
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Add Team Members</Label>
-
-                {/* Previously Added Members */}
-                {availableMembers.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs text-gray-500 mb-2">Select from previously added members:</p>
-                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                      {availableMembers.map((member) => (
-                        <Button
-                          key={member}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addTeamMember(member)}
-                          className="text-xs"
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {member}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Add New Member */}
-                <div className="space-y-2">
-                  {!showCustomMember ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowCustomMember(true)}
-                      className="w-full"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add New Team Member
-                    </Button>
-                  ) : (
-                    <div className="flex space-x-2">
-                      <Input
-                        type="text"
-                        value={newMemberName}
-                        onChange={(e) => setNewMemberName(e.target.value)}
-                        placeholder="Enter member name"
-                        className="flex-1"
-                        onKeyPress={(e) => e.key === "Enter" && addCustomMember()}
-                        list="member-name-suggestions"
-                      />
-                      <datalist id="member-name-suggestions">
-                        {memberNameSuggestions.map((name) => (
-                          <option key={name} value={name} />
-                        ))}
-                      </datalist>
-                      <Button type="button" onClick={addCustomMember} disabled={!newMemberName.trim()} size="sm">
-                        Add
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setShowCustomMember(false)
-                          setNewMemberName("")
-                        }}
-                        size="sm"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Empty State */}
-                {existingTeamMembers.length === 0 && !showCustomMember && (
-                  <div className="text-center py-4">
-                    <Users className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500 mb-3">No team members added yet</p>
-                    <p className="text-xs text-gray-400">
-                      Add team members to this project and they'll be available for future projects
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Project Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

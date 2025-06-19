@@ -1,55 +1,44 @@
-"use client"
+// Legacy ProjectModal removed. Use EnhancedProjectModal from enhanced-project-modal.tsx instead.
 
-import type React from "react"
-import { useState, useEffect } from "react"
-import { X } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-
-interface Project {
-  id?: string
-  name: string
-  client: string
-  status: "active" | "completed" | "on-hold" | "archived"
-  budget: string
-  spent: string
-  hours: string
-  teamMembers: string[]
-  deadline: string
-  progress: number
-  description?: string
-  isBillable: boolean
-  billableRate: string
-  template: string
-}
+import React, { useState, useEffect } from "react";
+import { Project } from "@/types/project";
+import { X } from "lucide-react";
 
 interface ProjectModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSave: (project: Project) => void
-  project?: Project | null
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (project: Project) => void;
+  project?: Project | null;
 }
 
 const templateOptions = ["Web Development", "Mobile App", "Design Project", "Consulting", "Marketing Campaign"]
 
-export function ProjectModal({ isOpen, onClose, onSave, project }: ProjectModalProps) {
+// This file is deprecated. Use EnhancedProjectModal from enhanced-project-modal.tsx instead.
+
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "./ui/select";
+import { Input } from "./ui/input";
+import { Switch } from "./ui/switch";
+import { Button } from "./ui/button";
+
+function ProjectModal({ isOpen, onClose, onSave, project }: ProjectModalProps) {
   const [formData, setFormData] = useState<Project>({
+    id: typeof project?.id === "number" ? project.id : Number(project?.id) || 0,
     name: project?.name || "",
     client: project?.client || "",
     status: project?.status || "active",
-    budget: project?.budget || "",
-    spent: project?.spent || "$0",
-    hours: project?.hours || "0",
-    teamMembers: project?.teamMembers || [],
+    budget: typeof project?.budget === "number" ? project.budget : Number(project?.budget) || 0,
+    spent: typeof project?.spent === "number" ? project.spent : Number(project?.spent) || 0,
+    hours: typeof project?.hours === "number" ? project.hours : Number(project?.hours) || 0,
     deadline: project?.deadline || "",
     progress: project?.progress || 0,
     description: project?.description || "",
     isBillable: project?.isBillable || false,
-    billableRate: project?.billableRate || "0",
+    billableRate: typeof project?.billableRate === "number" ? project.billableRate : Number(project?.billableRate) || 0,
+    totalHours: typeof project?.totalHours === "number" ? project.totalHours : Number(project?.totalHours) || 0,
+    billableHours: typeof project?.billableHours === "number" ? project.billableHours : Number(project?.billableHours) || 0,
+    totalCost: typeof project?.totalCost === "number" ? project.totalCost : Number(project?.totalCost) || 0,
     template: project?.template || templateOptions[0],
   })
 
@@ -82,29 +71,13 @@ export function ProjectModal({ isOpen, onClose, onSave, project }: ProjectModalP
   const handleInputChange = <K extends keyof Project>(field: K, value: Project[K]) => {
     setFormData((prev) => ({
       ...prev,
-      [field]: value,
-    }))
-  }
-
-  const handleTeamMemberAdd = (member: string) => {
-    if (!formData.teamMembers.includes(member)) {
-      setFormData((prev) => ({
-        ...prev,
-        teamMembers: [...prev.teamMembers, member],
-      }))
-    }
-  }
-
-  const handleTeamMemberRemove = (member: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      teamMembers: prev.teamMembers.filter((m) => m !== member),
+      [field]: field === 'progress' ? Number(value) : value,
     }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({ ...formData, id: project?.id })
+    onSave(formData)
     onClose()
   }
 
@@ -222,7 +195,7 @@ export function ProjectModal({ isOpen, onClose, onSave, project }: ProjectModalP
                 id="budget"
                 type="text"
                 value={formData.budget}
-                onChange={(e) => handleInputChange("budget", e.target.value)}
+                onChange={(e) => handleInputChange("budget", e.target.value === "" ? 0 : Number(e.target.value))}
                 className="w-full"
                 placeholder="$10,000"
               />
@@ -280,41 +253,14 @@ export function ProjectModal({ isOpen, onClose, onSave, project }: ProjectModalP
                 id="billableRate"
                 type="number"
                 value={formData.billableRate}
-                onChange={(e) => handleInputChange("billableRate", e.target.value)}
+                onChange={(e) => handleInputChange("billableRate", Number(e.target.value))}
                 className="w-full"
                 placeholder="e.g., 50"
               />
             </div>
           )}
 
-          <div>
-            <Label className="block text-sm font-medium text-gray-700 mb-1">Team Members</Label>
-            <div className="flex flex-wrap gap-2">
-              {formData.teamMembers.map((member) => (
-                <div key={member} className="flex items-center space-x-2 bg-gray-100 rounded-full px-3 py-1 text-sm">
-                  <span>{member}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleTeamMemberRemove(member)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <Input
-              type="text"
-              placeholder="Add team member"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && e.target.value) {
-                  handleTeamMemberAdd(e.target.value)
-                  e.target.value = ""
-                }
-              }}
-              className="w-full mt-2"
-            />
-          </div>
+
 
           {/* Actions */}
           <div className="flex justify-end space-x-3 pt-4">
