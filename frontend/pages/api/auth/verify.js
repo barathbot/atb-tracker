@@ -1,37 +1,42 @@
+// Use dynamic import if standard import fails
+let cookie;
+try {
+  cookie = require('cookie');
+} catch (e) {
+  cookie = (await import('cookie')).default;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { token } = req.body;
+    // Parse cookies safely
+    const cookies = cookie.parse(req.headers?.cookie || '');
+    const token = cookies?.token;
+    
+    console.log('Cookies:', cookies);
+    console.log('Token:', token);
 
     if (!token) {
-      return res.status(400).json({ error: 'Token is required' });
+      return res.status(401).json({ error: 'Missing token', availableCookies: Object.keys(cookies) });
     }
 
-    // Set the Django API URL with fallback
-    const DJANGO_API_URL = process.env.DJANGO_API_URL || 'http://localhost:8000';
-
-    // Forward the request to Django backend
-    const response = await fetch(`${DJANGO_API_URL}/api/auth/verify/`, {
+    const verifyRes = await fetch(`${process.env.DJANGO_API_URL || 'http://localhost:8000'}/api/auth/verify/`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
     });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      res.status(200).json(data);
-    } else {
-      res.status(response.status).json(data);
-    }
+    return res.status(verifyRes.status).json(await verifyRes.json());
 
   } catch (error) {
-    console.error('Token verification error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Full error:', error);
+    return res.status(500).json({ 
+      error: 'Verification failed',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
-} 
+}

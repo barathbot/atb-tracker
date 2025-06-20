@@ -18,6 +18,7 @@ export function LoginModal({ onClose }: LoginModalProps) {
     email: "",
     password: "",
   })
+  const [error, setError] = useState("");
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
@@ -26,11 +27,26 @@ export function LoginModal({ onClose }: LoginModalProps) {
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    // Handle login logic here
-    console.log("Login attempt:", formData)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setError("");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err?.error || "Login failed");
+        return;
+      }
+      // Redirect to dashboard/tasks after successful login
+      window.location.href = "/tasks";
+    } catch (err) {
+      setError("Login failed");
+    }
   }
 
   return (
@@ -60,6 +76,7 @@ export function LoginModal({ onClose }: LoginModalProps) {
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-8">Log in</h2>
 
           {/* Form */}
+          {error && <div className="text-red-500 text-center mb-2">{error}</div>}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">

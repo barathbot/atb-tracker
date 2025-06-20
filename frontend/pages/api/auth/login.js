@@ -1,3 +1,5 @@
+import cookie from 'cookie';  // Add this line
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -25,7 +27,22 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (response.ok) {
-      res.status(200).json(data);
+      // Set cookie with token (assuming Django returns { token: ... })
+      const token = data.token;
+      if (token) {
+        const cookie = require('cookie');
+        console.log('Token received:', data.token);  // Add this line
+        res.setHeader('Set-Cookie', cookie.serialize('token', data.token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 60 * 60 * 24 * 7, // 1 week
+          sameSite: 'strict',  // More secure than 'lax'
+          path: '/',
+        }));
+        return res.status(200).json({ success: true });
+      } else {
+        return res.status(401).json({ error: 'No token received from backend' });
+      }
     } else {
       res.status(response.status).json(data);
     }
@@ -34,4 +51,4 @@ export default async function handler(req, res) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-} 
+}

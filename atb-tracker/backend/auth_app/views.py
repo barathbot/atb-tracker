@@ -122,12 +122,11 @@ def google_auth(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_token(request):
-    """
-    Verify authentication token
-    """
+    """Verify authentication token with enhanced checks"""
     try:
         data = json.loads(request.body)
         token = data.get('token')
+        print("Token received for verification:", token)
 
         if not token:
             return Response(
@@ -142,6 +141,13 @@ def verify_token(request):
                 expires_at__gt=timezone.now()
             )
             
+            # Add user status validation
+            if not auth_token.user.is_active:
+                return Response(
+                    {'error': 'User account is inactive'}, 
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
             user_data = {
                 'id': auth_token.user.id,
                 'name': auth_token.user.name,
@@ -149,6 +155,7 @@ def verify_token(request):
                 'picture': auth_token.user.picture,
                 'provider': auth_token.user.provider,
                 'email_verified': auth_token.user.email_verified,
+                'is_active': auth_token.user.is_active,  # Include status
                 'created_at': auth_token.user.created_at.isoformat() if auth_token.user.created_at else None
             }
 
@@ -258,38 +265,60 @@ def register(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
-    """
-    Login user with email and password
-    """
+    """Login user with email and password"""
     try:
         data = json.loads(request.body)
         email = data.get('email')
         password = data.get('password')
 
         if not all([email, password]):
-            return Response({'error': 'Email and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Email and password are required.'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = Member.objects.get(email=email, provider='email')
+            if not user.is_active:  # Add active check
+                return Response({'error': 'Account is inactive'},
+                              status=status.HTTP_401_UNAUTHORIZED)
+                
+            if not user.check_password(password):
+                return Response({'error': 'Invalid password.'},
+                              status=status.HTTP_401_UNAUTHORIZED)
+
+            # Generate authentication token
+            token = secrets.token_urlsafe(32)
+            expires_at = timezone.now() + timedelta(days=30)
+            AuthToken.objects.update_or_create(
+                user=user, 
+                defaults={
+                    'token': token, 
+                    'expires_at': expires_at, 
+                    'is_active': True
+                }
+            )
+
+            user_data = {
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+                'provider': user.provider,
+                'is_active': user.is_active,
+                'created_at': user.created_at.isoformat() if user.created_at else None
+            }
+
+            return Response({
+                'user': user_data, 
+                'token': token, 
+                'message': 'Login successful.'
+            }, status=status.HTTP_200_OK)
+
         except Member.DoesNotExist:
-            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'User not found.'},
+                          status=status.HTTP_404_NOT_FOUND)
 
-        if not user.check_password(password):
-            return Response({'error': 'Invalid password.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Generate authentication token
-        token = secrets.token_urlsafe(32)
-        expires_at = timezone.now() + timedelta(days=30)
-        AuthToken.objects.update_or_create(user=user, defaults={'token': token, 'expires_at': expires_at, 'is_active': True})
-
-        user_data = {
-            'id': user.id,
-            'name': user.name,
-            'email': user.email,
-            'provider': user.provider,
-            'created_at': user.created_at.isoformat() if user.created_at else None
-        }
-
-        return Response({'user': user_data, 'token': token, 'message': 'Login successful.'}, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': str(e)},
+                      status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+        
